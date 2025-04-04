@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stack Overflow Tags Visualization</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8fafc;
+            color: #333;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        h1 {
+            text-align: center;
+            color: #1e293b;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        .chart-container {
+            position: relative;
+            height: 75vh;
+            margin: 30px 0;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+        }
+        .error {
+            color: #dc3545;
+            text-align: center;
+            padding: 20px;
+            font-size: 1.2em;
+        }
+        .legend-container {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #f8fafc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Top 10 Stack Overflow Tags (2022-2025)</h1>
+        <div class="chart-container">
+            <canvas id="tagChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let chart = null;
+
+        // Define custom colors for each programming language
+        const tagColors = {
+            'Python': { color: '#3572A5', background: '#3572A522' },
+            'JavaScript': { color: '#F0DB4F', background: '#F0DB4F22' },
+            'Java': { color: '#B07219', background: '#B0721922' },
+            'C#': { color: '#178600', background: '#17860022' },
+            'PHP': { color: '#4F5D95', background: '#4F5D9522' },
+            'HTML': { color: '#E34C26', background: '#E34C2622' },
+            'Android': { color: '#3DDC84', background: '#3DDC8422' },
+            'React.js': { color: '#61DAFB', background: '#61DAFB22' },
+            'Flutter': { color: '#02569B', background: '#02569B22' },
+            'Node.js': { color: '#68A063', background: '#68A06322' },
+            'R': { color: '#198CE7', background: '#198CE722' }
+        };
+
+        async function fetchData() {
+            try {
+                const response = await fetch('/api/data');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    console.log("Received data:", data);
+                    if (data.tags && data.tags.length > 0) {
+                        createChart(data);
+                    } else {
+                        document.querySelector('.chart-container').innerHTML = 
+                            '<div class="error">No data available to display</div>';
+                    }
+                } else {
+                    document.querySelector('.chart-container').innerHTML = 
+                        `<div class="error">Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                document.querySelector('.chart-container').innerHTML = 
+                    '<div class="error">Error connecting to server. Please make sure the server is running.</div>';
+            }
+        }
+
+        function createChart(data) {
+            const ctx = document.getElementById('tagChart').getContext('2d');
+            
+            // Sort datasets by average percentage for better visualization
+            const datasets = data.tags.map((tag, index) => {
+                const colorInfo = tagColors[tag.name] || {
+                    color: `hsl(${index * 36}, 70%, 50%)`,
+                    background: `hsla(${index * 36}, 70%, 50%, 0.1)`
+                };
+                
+                return {
+                    label: `${tag.name} (Avg: ${tag.average.toFixed(1)}%)`,
+                    data: tag.data,
+                    borderColor: colorInfo.color,
+                    backgroundColor: colorInfo.background,
+                    tension: 0.4,
+                    fill: true,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 8,
+                    pointBackgroundColor: colorInfo.color,
+                    pointBorderColor: 'white',
+                    pointBorderWidth: 2,
+                    pointHoverBackgroundColor: 'white',
+                    pointHoverBorderColor: colorInfo.color,
+                    pointHoverBorderWidth: 3
+                };
+            });
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            // Create a summary of total questions per year
+            const totalQuestionsSummary = Object.entries(data.total_questions)
+                .map(([year, total]) => `${year}: ${total.toLocaleString()} questions`)
+                .join(' | ');
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.years,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: ['Percentage Distribution of Top Stack Overflow Tags (2022-2025)', totalQuestionsSummary],
+                            font: {
+                                size: 18,
+                                weight: 'bold'
+                            },
+                            color: '#1e293b',
+                            padding: {
+                                top: 10,
+                                bottom: 30
+                            }
+                        },
+                        subtitle: {
+                            display: true,
+                            text: 'Each line represents the percentage of total questions for that year',
+                            font: {
+                                size: 14,
+                                style: 'italic'
+                            },
+                            color: '#64748b',
+                            padding: {
+                                bottom: 30
+                            }
+                        },
+                        legend: {
+                            position: 'right',
+                            align: 'start',
+                            labels: {
+                                boxWidth: 15,
+                                boxHeight: 15,
+                                padding: 20,
+                                font: {
+                                    size: 13
+                                },
+                                usePointStyle: true,
+                                pointStyle: 'circle'
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            titleColor: '#1e293b',
+                            bodyColor: '#1e293b',
+                            borderColor: '#e2e8f0',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: true,
+                            usePointStyle: true,
+                            callbacks: {
+                                label: function(context) {
+                                    const tagName = context.dataset.label.split(' (')[0];
+                                    return `${tagName}: ${context.parsed.y.toFixed(1)}% of total questions`;
+                                }
+                            }
+                        },
+                        annotation: {
+                            annotations: {
+                                line1: {
+                                    type: 'line',
+                                    yMin: 0,
+                                    yMax: 0,
+                                    borderColor: 'rgba(0, 0, 0, 0.2)',
+                                    borderWidth: 1,
+                                    label: {
+                                        content: '0%',
+                                        enabled: true,
+                                        position: 'left'
+                                    }
+                                },
+                                line2: {
+                                    type: 'line',
+                                    yMin: 10,
+                                    yMax: 10,
+                                    borderColor: 'rgba(0, 0, 0, 0.1)',
+                                    borderWidth: 1,
+                                    borderDash: [5, 5],
+                                    label: {
+                                        content: '10%',
+                                        enabled: true,
+                                        position: 'left'
+                                    }
+                                },
+                                line3: {
+                                    type: 'line',
+                                    yMin: 20,
+                                    yMax: 20,
+                                    borderColor: 'rgba(0, 0, 0, 0.1)',
+                                    borderWidth: 1,
+                                    borderDash: [5, 5],
+                                    label: {
+                                        content: '20%',
+                                        enabled: true,
+                                        position: 'left'
+                                    }
+                                },
+                                line4: {
+                                    type: 'line',
+                                    yMin: 30,
+                                    yMax: 30,
+                                    borderColor: 'rgba(0, 0, 0, 0.1)',
+                                    borderWidth: 1,
+                                    borderDash: [5, 5],
+                                    label: {
+                                        content: '30%',
+                                        enabled: true,
+                                        position: 'left'
+                                    }
+                                },
+                                line5: {
+                                    type: 'line',
+                                    yMin: 40,
+                                    yMax: 40,
+                                    borderColor: 'rgba(0, 0, 0, 0.2)',
+                                    borderWidth: 1,
+                                    label: {
+                                        content: '40%',
+                                        enabled: true,
+                                        position: 'left'
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            min: 0,
+                            max: 40,
+                            title: {
+                                display: true,
+                                text: 'Percentage of Total Questions (%)',
+                                font: {
+                                    weight: 'bold',
+                                    size: 14
+                                },
+                                color: '#1e293b',
+                                padding: {
+                                    bottom: 10
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.06)',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                },
+                                stepSize: 5,
+                                color: '#64748b',
+                                padding: 10
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Year',
+                                font: {
+                                    weight: 'bold',
+                                    size: 14
+                                },
+                                color: '#1e293b',
+                                padding: {
+                                    top: 10
+                                }
+                            },
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: '#64748b',
+                                padding: 10
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Fetch data when page loads
+        fetchData();
+    </script>
+</body>
+</html> 
